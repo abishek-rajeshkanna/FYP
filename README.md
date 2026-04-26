@@ -25,7 +25,7 @@ From the project root:
 cd backend
 py -m venv venv
 venv\Scripts\activate
-python -m pip install flask flask-cors pillow
+python -m pip install -r requirements.txt
 python server.py
 ```
 
@@ -34,6 +34,10 @@ Notes:
 - The `py -m venv venv` and `pip install ...` steps only need to be run **once**
   (or whenever dependencies change). On subsequent runs just activate the venv
   and run `python server.py`.
+- `requirements.txt` installs `flask`, `flask-cors`, `pillow`, `pygame`, and
+  `stable_baselines3` (which pulls in `torch`, `numpy`, and `gymnasium`). The
+  `torch` download is large (a few hundred MB) — first install will take a
+  while.
 - The server listens on `http://localhost:5000` and exposes:
   - `GET  /video_feed` — MJPEG stream of the simulation
   - `POST /control/pause` — toggle pause
