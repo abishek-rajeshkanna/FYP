@@ -3,12 +3,11 @@
 # ---------------------------------------------------------------------------
 
 # Virtual environments
+# NOTE: do NOT add bare `env/` here — `backend/env/` is a source folder.
 backend/venv/
 backend/env_venv/
 venv/
 .venv/
-env/
-ENV/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
