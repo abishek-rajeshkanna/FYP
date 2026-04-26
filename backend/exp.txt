@@ -1,0 +1,432 @@
+============================================================
+TRAFFIC SIGNAL RL AGENT + EMERGENCY VEHICLE PPO AGENTS
+FULL SYSTEM DESCRIPTION
+============================================================
+
+SYSTEM OVERVIEW
+------------------------------------------------------------
+The simulation contains two reinforcement learning systems
+interacting within the same traffic environment.
+
+Agents in the system:
+
+1. Traffic Signal Agent
+   Algorithm: Deep Q Network (DQN)
+   Role: Control intersection traffic signal phases
+
+2. Emergency Vehicle Agents
+   Algorithm: PPO (Proximal Policy Optimization)
+   Role: Control ambulance and police vehicle behavior
+         such as lane changes and speed adjustments
+
+Other vehicles (cars and trucks) are rule-based and do not
+use reinforcement learning.
+
+
+============================================================
+TRAFFIC SIGNAL AGENT (DQN)
+============================================================
+
+Files involved:
+- rl/state_encoder.py
+- rl/reward.py
+- rl/signal_policy.py
+- rl/traffic_env.py
+- rl/trainer.py
+
+
+------------------------------------------------------------
+TRAFFIC SIGNAL STATE VECTOR
+------------------------------------------------------------
+
+The signal state vector contains 12 features.
+
+Lane order used in the environment:
+
+[W0, W1, E0, E1, N0, N1, S0, S1]
+
+Each value represents queue length on that lane.
+
+Final state vector structure:
+
+STATE = [
+ queue_W0,
+ queue_W1,
+ queue_E0,
+ queue_E1,
+ queue_N0,
+ queue_N1,
+ queue_S0,
+ queue_S1,
+ emergency_vehicle_count,
+ average_intersection_speed,
+ signal_phase_id,
+ signal_timer
+]
+
+Example state printed in terminal:
+
+[0,0,0,0,1,1,1,1,12,0.0,0,55]
+
+
+Meaning:
+
+Index | Description
+--------------------------------
+0 | queue length W0
+1 | queue length W1
+2 | queue length E0
+3 | queue length E1
+4 | queue length N0
+5 | queue length N1
+6 | queue length S0
+7 | queue length S1
+8 | emergency vehicle count
+9 | average intersection speed
+10 | signal phase ID
+11 | phase timer
+
+
+------------------------------------------------------------
+TRAFFIC SIGNAL PHASE ENCODING
+------------------------------------------------------------
+
+Phase encoding used internally:
+
+0 = HORIZONTAL_GREEN
+1 = HORIZONTAL_YELLOW
+2 = VERTICAL_GREEN
+3 = VERTICAL_YELLOW
+
+
+------------------------------------------------------------
+TRAFFIC SIGNAL ACTION SPACE
+------------------------------------------------------------
+
+The signal agent has 3 actions.
+
+Action | Meaning
+----------------------------
+0 | KEEP_PHASE
+1 | EXTEND_PHASE
+2 | SWITCH_PHASE
+
+Example terminal output:
+
+RL ACTION: 2
+
+Meaning:
+Switch signal phase.
+
+
+------------------------------------------------------------
+TRAFFIC SIGNAL REWARD FUNCTION
+------------------------------------------------------------
+
+Reward components from reward.py:
+
+1. Queue penalty
+
+reward += queue_weight * total_queue
+
+queue_weight = -1.0
+
+Large queues reduce reward.
+
+
+2. Queue improvement bonus
+
+queue_change = prev_queue - curr_queue
+
+reward += queue_change * 0.5
+
+If queue decreases → positive reward.
+
+
+3. Traffic speed reward
+
+reward += speed_weight * avg_speed
+
+speed_weight = 0.3
+
+Faster traffic → positive reward.
+
+
+4. Waiting penalty
+
+reward += wait_penalty * waiting_vehicles
+
+wait_penalty = -0.5
+
+More waiting vehicles reduce reward.
+
+
+5. Emergency vehicle bonus
+
+if emergency_count > 0:
+    reward += 5
+
+Encourages prioritizing emergency vehicles.
+
+
+------------------------------------------------------------
+FINAL TRAFFIC SIGNAL REWARD FORMULA
+------------------------------------------------------------
+
+reward =
+-1.0 * total_queue
++0.5 * queue_reduction
++0.3 * average_speed
+-0.5 * waiting_vehicles
++5 if emergency vehicle present
+
+
+============================================================
+TRAFFIC SIGNAL DQN DECISION PROCESS
+============================================================
+
+PSEUDOCODE
+
+Initialize DQN network
+Initialize replay buffer
+
+Loop every simulation step:
+
+    state = encode_current_traffic_state()
+
+    Q_values = DQN.predict(state)
+
+    action = argmax(Q_values)
+
+    if action == KEEP_PHASE:
+        maintain current signal phase
+
+    if action == EXTEND_PHASE:
+        increase phase duration
+
+    if action == SWITCH_PHASE:
+        change signal direction
+        (horizontal <-> vertical)
+
+    apply action to traffic environment
+
+    next_state = observe environment
+
+    reward = compute_reward()
+
+    store (state, action, reward, next_state)
+
+    update DQN network via experience replay
+
+
+============================================================
+EMERGENCY VEHICLE PPO AGENTS
+============================================================
+
+Files involved:
+
+- drl2/state.py
+- drl2/policy.py
+- drl2/reward.py
+- env/vehicle_controller.py
+
+
+Agents using PPO:
+- Ambulance
+- Police
+
+
+------------------------------------------------------------
+EMV STATE VECTOR
+------------------------------------------------------------
+
+Emergency vehicle state vector contains 10 features.
+
+STATE = [
+ front_distance,
+ rear_distance,
+ vehicles_ahead,
+ vehicles_behind,
+ lane_density,
+ blocked_time,
+ vehicle_speed,
+ slow_vehicle_ahead,
+ adjacent_lane_free,
+ front_vehicle_type
+]
+
+
+------------------------------------------------------------
+STATE FEATURE DESCRIPTION
+------------------------------------------------------------
+
+Feature | Meaning
+-----------------------------------------
+front_distance | distance to vehicle ahead
+rear_distance | distance to vehicle behind
+vehicles_ahead | number of vehicles ahead
+vehicles_behind | number of vehicles behind
+lane_density | congestion level
+blocked_time | how long EMV was blocked
+vehicle_speed | normalized vehicle speed
+slow_vehicle_ahead | indicator of slow vehicle
+adjacent_lane_free | lane change safety indicator
+front_vehicle_type | vehicle type ahead
+
+
+------------------------------------------------------------
+STATE NORMALIZATION
+------------------------------------------------------------
+
+Values are normalized before entering PPO:
+
+front_distance / 500
+vehicles_ahead / 5
+lane_density / 10
+speed / 2
+blocked_time / 60
+
+All values scaled between 0 and 1.
+
+
+------------------------------------------------------------
+EMV ACTION SPACE
+------------------------------------------------------------
+
+Action | Meaning
+----------------------------
+0 | KEEP_LANE
+1 | CHANGE_LANE
+2 | BRAKE
+3 | ACCELERATE
+
+
+------------------------------------------------------------
+EMV REWARD FUNCTION
+------------------------------------------------------------
+
+Reward components from drl2/reward.py
+
+Positive rewards:
+
++ forward movement progress
++ successful overtaking
++ maintaining high speed
+
+Negative rewards:
+
+- being blocked by traffic
+- unsafe lane changes
+- excessive braking
+- collision risk
+
+
+Goal:
+
+Maximize emergency vehicle travel efficiency.
+
+
+============================================================
+EMERGENCY VEHICLE PPO DECISION PROCESS
+============================================================
+
+PSEUDOCODE
+
+Initialize PPO policy network
+
+Loop every simulation step:
+
+    observe vehicle environment
+
+    state = encode_vehicle_state()
+
+    action_probabilities = PPO_policy(state)
+
+    action = sample_from_distribution(action_probabilities)
+
+    if action == KEEP_LANE:
+        continue current lane
+
+    if action == CHANGE_LANE:
+        check adjacent lane safety
+        if safe:
+            initiate lane change
+
+    if action == BRAKE:
+        reduce vehicle speed
+
+    if action == ACCELERATE:
+        increase vehicle speed
+
+    apply action to vehicle
+
+    next_state = observe updated environment
+
+    reward = compute_vehicle_reward()
+
+    store transition
+
+    update PPO policy using advantage estimation
+
+
+============================================================
+SYSTEM INTERACTION BETWEEN AGENTS
+============================================================
+
+Both RL systems share the same environment.
+
+Traffic Signal Agent controls intersection flow.
+
+Emergency Vehicle Agents adapt their behavior
+based on surrounding traffic.
+
+Example interaction:
+
+Signal switches phase
+↓
+Cars move forward
+↓
+Ambulance detects slow vehicle ahead
+↓
+PPO agent chooses CHANGE_LANE
+↓
+Emergency vehicle bypasses traffic
+
+
+============================================================
+FINAL AGENT ARCHITECTURE
+============================================================
+
+Traffic Environment
+
+    │
+    │
+    ├──────── Traffic Signal Agent (DQN)
+    │          controls intersection signal
+    │
+    └──────── Emergency Vehicle Agents (PPO)
+               ambulance + police
+
+
+Cars and trucks follow rule-based logic.
+
+
+============================================================
+SUMMARY
+============================================================
+
+Traffic Signal Agent
+- Algorithm: DQN
+- State size: 12
+- Actions: 3
+- Reward: traffic efficiency optimization
+
+Emergency Vehicle Agents
+- Algorithm: PPO
+- State size: 10
+- Actions: 4
+- Reward: emergency travel efficiency
+
+Both agents interact through the shared traffic environment.
+
+tensorboard --logdir ppo_tensorboard --port 6007
