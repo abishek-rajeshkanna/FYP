@@ -90,9 +90,9 @@ ehthumbs.db
 Desktop.ini
 
 # ---------------------------------------------------------------------------
-# Large media (keep repo light)
+# Archives
 # ---------------------------------------------------------------------------
+# NOTE: do NOT add bare `*.mp4` / `*.mov` here — frontend/src/assets/ contains
+# project video assets that the app imports.
 
 *.zip
-*.mp4
-*.mov
