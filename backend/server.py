@@ -33,6 +33,7 @@ from flask_cors import CORS
 from env.simulation import Simulation
 from rl.signal_policy import SignalPolicy
 from rl.state_encoder import StateEncoder
+import log_store
 
 
 WIDTH = 1250
@@ -102,6 +103,29 @@ def _sim_loop():
                 vq = _vertical_queue(lane_stats)
                 horizontal_green = sim.signal.is_horizontal_green()
                 vertical_green = sim.signal.is_vertical_green()
+
+                # MAPPO state vector logging
+                north_q = lane_stats["N0"]["queue"] + lane_stats["N1"]["queue"]
+                south_q = lane_stats["S0"]["queue"] + lane_stats["S1"]["queue"]
+                east_q  = lane_stats["E0"]["queue"] + lane_stats["E1"]["queue"]
+                west_q  = lane_stats["W0"]["queue"] + lane_stats["W1"]["queue"]
+                neighbor_q1 = east_q + west_q
+                neighbor_q2 = north_q + south_q
+                ev_dist = -1
+                for vehicle, controller in sim.vehicles:
+                    if vehicle.is_emergency:
+                        ev_dist = round(
+                            (1 - controller.t) * controller.lane.length * sim.PIXEL_TO_METER, 2
+                        )
+                        break
+                m_state = [north_q, south_q, east_q, west_q,
+                           sim.signal.phase, neighbor_q1, neighbor_q2, ev_dist]
+                if not paused:
+                    log_store.add("mappo", {
+                        "state": m_state,
+                        "action": int(action),
+                        "timer": sim.signal.timer,
+                    })
 
                 if horizontal_green and vq > hq + 1:
                     sim.signal.switch_phase()
@@ -214,6 +238,11 @@ def control_state():
                 "frame_count": frame_count,
             }
         )
+
+
+@app.route("/logs", methods=["GET"])
+def get_logs():
+    return jsonify(log_store.get_all())
 
 
 def main():

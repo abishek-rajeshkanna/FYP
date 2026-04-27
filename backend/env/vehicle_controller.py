@@ -4,7 +4,13 @@ import math
 from env.config import LANE_MODE
 from drl2.policy import DRLPolicy
 from drl2.state import StateEncoder
+from drl2.dst import dstEncoder
 
+try:
+    import log_store as _log_store
+    _HAVE_LOG_STORE = True
+except ImportError:
+    _HAVE_LOG_STORE = False
 
 class VehicleController:
 
@@ -97,7 +103,7 @@ class VehicleController:
 
     # --------------------------------------------------
 
-    def print_emv_decision(self, state, action):
+    def print_emv_decision(self, model_state, action):
 
         action_map = {
             0: "KEEP LANE",
@@ -118,11 +124,24 @@ class VehicleController:
             print("================================================")
 
             print("\nSTATE VECTOR DESCRIPTION")
-            print("[front_dist, rear_dist, vehicles_ahead, vehicles_behind, lane_density, blocked_time, speed, slow_vehicle_ahead, adjacent_lane_free, front_vehicle_type]")
+            print("Neighbors (x6): [Lane, Speed, Acceleration, RelDistance]")
+            print("Ego Vehicle   : [Lane, Speed, Acceleration, RelDistance, Position]")
+            print("Total Features: 29")
 
             print("\nSTATE VECTOR VALUES")
-            print(state)
+            print(model_state)
             print("\n")
+
+            if _HAVE_LOG_STORE:
+                sv = model_state.tolist() if hasattr(model_state, "tolist") else list(model_state)
+                _log_store.add("drl", {
+                    "agent": self.vehicle.vehicle_type.upper(),
+                    "lane": self.lane.lane_id,
+                    "speed": round(self.current_speed, 2),
+                    "action_id": int(action),
+                    "action": action_map.get(action, "UNKNOWN"),
+                    "state_values": sv,
+                })
 
     # --------------------------------------------------
 
@@ -216,13 +235,15 @@ class VehicleController:
         if self.drl_policy is None:
             self.drl_policy = DRLPolicy()
             self.drl_encoder = StateEncoder()
+            self.dst_encoder = dstEncoder()
 
         state = self.drl_encoder.encode(self, vehicles)
+        model_state = self.dst_encoder.encode(self, vehicles)
         action = self.drl_policy.act(state)
 
         self.log_timer += 1
         if self.log_timer >= 20:
-            self.print_emv_decision(state, action)
+            self.print_emv_decision(model_state, action)
             self.log_timer = 0
 
         if self.front_vehicle and self.front_distance:
@@ -911,6 +932,13 @@ class VehicleController:
             # --------------------------------------------------
             #  QoS TRACKING STOP + PRINT RESULTS
             # --------------------------------------------------
+            if self.vehicle.is_emergency:
+                # DEBUG: Log why QoS might not be printing
+                if not self.qos_active:
+                    print(f"DEBUG: {self.vehicle.vehicle_type.upper()} on {self.lane.lane_id} - qos_active=False")
+                if len(self.qos_log) == 0:
+                    print(f"DEBUG: {self.vehicle.vehicle_type.upper()} on {self.lane.lane_id} - qos_log is empty (samples={len(self.qos_log)})")
+            
             if self.vehicle.is_emergency and self.qos_active:
 
                 if len(self.qos_log) > 0:  # Print if we have at least 1 sample
@@ -923,7 +951,7 @@ class VehicleController:
                     print("------------------------------------------------------------")
 
                     header_slots = " | ".join([f"T{i+1}" for i in range(sample_count)])
-                    print(f"Metrics         | {header_slots}")
+                    print(f"Parameters         | {header_slots}")
                     print("------------------------------------------------------------")
 
                     ranges = [str(x["range"]) for x in self.qos_log]
@@ -938,6 +966,14 @@ class VehicleController:
 
                     print("------------------------------------------------------------\n")
 
+                    if _HAVE_LOG_STORE:
+                        _log_store.add("qos", {
+                            "vehicle": self.vehicle.vehicle_type.upper(),
+                            "location": self.lane.lane_id,
+                            "samples": sample_count,
+                            "data": list(self.qos_log),
+                        })
+
                 # reset after printing
                 self.qos_log.clear()
                 self.qos_active = False
@@ -951,7 +987,7 @@ class VehicleController:
             self.t = 0.02
 
         if self.lane_changing:
-            self.apply_lane_change()
+            self.apply_lane_change()   # lane change
         else:
             x, y = self.lane.interpolate(self.t)
             self.vehicle.x = x

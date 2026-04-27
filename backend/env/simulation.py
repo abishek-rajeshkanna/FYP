@@ -9,11 +9,9 @@ from env.vehicle_controller import VehicleController
 from env.signal import TrafficSignal
 from env.config import LANE_MODE
 
-# ✅ NEW IMPORT (ADDED)
 from network.channel import Channel
 
 import pygame
-
 
 class Simulation:
 
@@ -28,16 +26,16 @@ class Simulation:
 
         self.vehicles = []
 
-        # ✅ NEW: Message Channel
+        # Message Channel
         self.channel = Channel()
         self.message_timer = 0   # for test messages
 
-        # ✅ NEW: EMV broadcast zone blink control
+        # EMV broadcast zone blink control
         self.blink_timer = 0
         self.blink_state = True
 
         # --------------------------------------------------
-        # 🚀 MESSAGE VISIBILITY TOGGLE
+        # MESSAGE VISIBILITY TOGGLE
         # --------------------------------------------------
         self.show_messages = True
 
@@ -117,7 +115,7 @@ class Simulation:
             self.vehicles.append((vehicle, controller))
 
     # --------------------------------------------------
-    # 🚀 UPDATE QoS METRICS
+    # UPDATE QoS METRICS
     # --------------------------------------------------
     def update_qos_metrics(self):
 
@@ -131,18 +129,21 @@ class Simulation:
 
             m = self.channel.metrics
 
+            # Calculate average range
             if m.total_received > 0:
                 R = m.total_distance / m.total_received
                 Wc = m.total_delay / m.total_received
             else:
                 R = 0
                 Wc = 0
-
+            
+            # Calculate channel utilization
             if m.total_steps > 0:
                 sigma = m.busy_steps / m.total_steps
             else:
                 sigma = 0
-
+ 
+            # Calculate packet rate
             lambda_rate = m.total_sent / 5.0
 
             self.qos_display = {
@@ -348,7 +349,7 @@ class Simulation:
         current_phase = self.signal.phase
 
         # --------------------------------------------------
-        # 🚀 TRIGGER ON ANY PHASE CHANGE
+        # TRIGGER ON ANY PHASE CHANGE
         # --------------------------------------------------
         if current_phase != self.prev_phase and not self.rsu_message_sent:
 
@@ -429,21 +430,21 @@ class Simulation:
         self.prev_phase = current_phase
 
         for vehicle, controller in self.vehicles:
-            controller.update(self.signal, self.vehicles)
+            controller.update(self.signal, self.vehicles)          # lane change
 
         self.check_emergency_preemption()
         self.apply_emv_preemption()
 
         self.compute_metrics()
 
-        # ✅ NEW: Update message system
+        # Update message system
         self.channel.update()
 
-        # ✅ NEW: Update QoS metrics
+        # Update QoS metrics
         self.update_qos_metrics()
 
         # --------------------------------------------------
-        # 🚀 BLINK CONTROL FOR EMV ZONE
+        # BLINK CONTROL FOR EMV ZONE
         # --------------------------------------------------
         self.blink_timer += 1
 
@@ -451,7 +452,7 @@ class Simulation:
             self.blink_timer = 0
             self.blink_state = not self.blink_state
 
-        # ✅ TEMP TEST: send EMV messages
+        # TEMP TEST: send EMV messages
         # Removed, EMV broadcast is now handled in vehicle_controller.py
 
         # BASELINE METRIC FETCH
@@ -487,7 +488,7 @@ class Simulation:
         return data
 
     # --------------------------------------------------
-    # 🚀 GET ACTIVE LANES (NOT DIRECTIONS)
+    # GET ACTIVE LANES (NOT DIRECTIONS)
     # --------------------------------------------------
     def get_active_lanes(self):
 
@@ -587,7 +588,7 @@ class Simulation:
         self.road.draw(screen, ev_data, lane_stats)
 
         # --------------------------------------------------
-        # 🚀 DRAW LANE-SPECIFIC ZONES
+        # DRAW LANE-SPECIFIC ZONES
         # --------------------------------------------------
         if self.show_messages:
 
@@ -601,7 +602,7 @@ class Simulation:
                 road_half = self.road.road_width // 2
 
                 # --------------------------------------------------
-                # 🚀 EXACT STOP LINE POSITIONS (MATCH VEHICLE STOP)
+                # EXACT STOP LINE POSITIONS (MATCH VEHICLE STOP)
                 # --------------------------------------------------
                 west_stop_x  = cx - road_half
                 east_stop_x  = cx + road_half
@@ -670,7 +671,7 @@ class Simulation:
             vehicle.draw(screen)
 
         # --------------------------------------------------
-        # 🚀 DRAW EMV BROADCAST ZONE (TOGGLE CONTROL)
+        # DRAW EMV BROADCAST ZONE (TOGGLE CONTROL)
         # --------------------------------------------------
         if self.show_messages and self.show_circles:
             for vehicle, controller in self.vehicles:
@@ -704,12 +705,12 @@ class Simulation:
 
                 screen.blit(label, (vehicle.x + 10, vehicle.y - 10))
 
-        # ✅ NEW: Draw messages
+        #  Draw messages
         if self.show_messages:
             self.channel.draw(screen)
 
         # --------------------------------------------------
-        # 🚀 MESSAGE TOGGLE BUTTON UI
+        #  MESSAGE TOGGLE BUTTON UI
         # --------------------------------------------------
         button_x = self.width - 180
         button_y = 150
@@ -724,7 +725,11 @@ class Simulation:
         screen.blit(label, (button_x + 10, button_y + 10))
 
         # --------------------------------------------------
-        # 🚀 CIRCLE STATUS UI
+        # CIRCLE STATUS UI
         # --------------------------------------------------
         circle_text = self.road.font.render(f"Circles: {'ON' if self.show_circles else 'OFF'}", True, (255, 255, 255))
         screen.blit(circle_text, (20, 20))
+
+    def set_phase(self, phase):
+        self.phase = phase
+        self.timer = self.default_green_time

@@ -4,6 +4,8 @@ from env.simulation import Simulation
 from rl.signal_policy import SignalPolicy
 from rl.state_encoder import StateEncoder
 
+from drl2.dst import dsEncoder
+
 
 pygame.init()
 
@@ -22,7 +24,7 @@ encoder = StateEncoder()
 
 decision_interval = 300   # RL decision every 5 seconds
 frame_count = 0
-
+multijunc = False
 # Pause and replay variables
 paused = False
 history = []
@@ -89,6 +91,7 @@ while running:
         ev_data = sim.detect_ev_lanes()
 
         state = encoder.encode(lane_stats, ev_data, sim.signal)
+        m_state = dsEncoder.encode(lane_stats,sim)
 
         action = policy.act(state)
 
@@ -103,12 +106,13 @@ while running:
         # ------------------------------------------------
 
         if not paused:
+
+            print("\nSTATE VECTOR DESCRIPTION FOR MAPPO")
+            print("[North Queue, South Queue, East Queue, West Queue,")
+            print(" Signal Phase, Neighbor Queue (1), Neighbor Queue (2), EV Distance]")
             print("\n============================")
-            print("STATE:", state)
+            print("STATE:", m_state)
             print("RL ACTION:", action)
-            print("Horizontal Queue:", hq)
-            print("Vertical Queue:", vq)
-            print("Current Phase:", sim.signal.phase)
             print("Timer:", sim.signal.timer)
             print("============================")
 
@@ -118,14 +122,14 @@ while running:
 
         if horizontal_green and vq > hq + 1:
 
-            if not paused:
-                print("OVERRIDE: SWITCH TO VERTICAL")
+            #if not paused:
+               # print("OVERRIDE: SWITCH TO VERTICAL")
             sim.signal.switch_phase()
 
         elif vertical_green and hq > vq + 1:
 
-            if not paused:
-                print("OVERRIDE: SWITCH TO HORIZONTAL")
+            #if not paused:
+               # print("OVERRIDE: SWITCH TO HORIZONTAL")
             sim.signal.switch_phase()
 
         else:
@@ -134,16 +138,49 @@ while running:
             # RL decisions
             # --------------------------------------------
 
+            if multijunc:
+
+                if action == 0:
+
+                    if not paused:
+                        print("RL DECISION: EW THROUGH GREEN")
+
+                    sim.signal.set_phase("EW_THROUGH")
+
+
+                elif action == 1:
+
+                    if not paused:
+                        print("RL DECISION: NS THROUGH GREEN")
+
+                    sim.signal.set_phase("NS_THROUGH")
+
+
+                elif action == 2:
+
+                    if not paused:
+                        print("RL DECISION: EW LEFT-TURN GREEN")
+
+                    sim.signal.set_phase("EW_LEFT")
+
+
+                elif action == 3:
+
+                    if not paused:
+                        print("RL DECISION: NS LEFT-TURN GREEN")
+
+                    sim.signal.set_phase("NS_LEFT")
+
             if action == 1:
 
                 if not paused:
-                    print("RL DECISION: SWITCH PHASE")
+                    print("RL DECISION: EW THROUGH GREEN")
                 sim.signal.switch_phase()
 
             elif action == 2:
 
                 if not paused:
-                    print("RL DECISION: EXTEND GREEN")
+                    print("RL DECISION: NS THROUGH GREEN")
                 sim.signal.extend_green()
 
     # ------------------------------------------------
@@ -153,7 +190,7 @@ while running:
     sim.paused = paused
 
     if not paused:
-        sim.update()
+        sim.update() # lane change
 
         # Store state after update
         history.append(sim.get_state())

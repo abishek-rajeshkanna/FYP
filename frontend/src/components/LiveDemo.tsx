@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Pause, Play, Radio, MessageSquare, RefreshCw } from 'lucide-react'
 import { useInView } from '../hooks/useInView'
+import TerminalLogs from './TerminalLogs'
 
 const API = (import.meta.env.VITE_SIM_API as string | undefined) ?? 'http://localhost:5000'
 
@@ -126,6 +127,14 @@ export default function LiveDemo() {
             <span className="demo-kbd">M</span>
           </button>
         </div>
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={inView ? { opacity: 1, y: 0 } : {}}
+        transition={{ duration: 0.5, delay: 0.2 }}
+      >
+        <TerminalLogs />
       </motion.div>
     </section>
   )
